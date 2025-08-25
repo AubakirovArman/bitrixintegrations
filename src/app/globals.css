@@ -14,8 +14,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #ffffff;
+    --foreground: #171717;
   }
 }
 
@@ -23,4 +23,64 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Принудительно светлая тема для лучшей читаемости */
+* {
+  color-scheme: light;
+}
+
+input, textarea, select {
+  background-color: white !important;
+  color: black !important;
+  border: 1px solid #d1d5db !important;
+}
+
+input:focus, textarea:focus, select:focus {
+  background-color: white !important;
+  color: black !important;
+  border-color: #3b82f6 !important;
+  outline: 2px solid #3b82f6 !important;
+  outline-offset: 2px !important;
+}
+
+/* Стили для выпадающих списков Select */
+[data-radix-select-content],
+[data-radix-popper-content-wrapper] [data-radix-select-content],
+.select-content {
+  background-color: white !important;
+  color: black !important;
+  border: 1px solid #d1d5db !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+}
+
+[data-radix-select-item],
+[data-radix-select-item] *,
+.select-item {
+  background-color: white !important;
+  color: black !important;
+}
+
+[data-radix-select-item]:hover,
+[data-radix-select-item][data-highlighted],
+[data-radix-select-item][data-state="checked"],
+.select-item:hover {
+  background-color: #f3f4f6 !important;
+  color: black !important;
+}
+
+/* Дополнительные селекторы для Radix UI */
+[data-radix-select-viewport] {
+  background-color: white !important;
+}
+
+[role="option"] {
+  background-color: white !important;
+  color: black !important;
+}
+
+[role="option"]:hover,
+[role="option"][data-highlighted] {
+  background-color: #f3f4f6 !important;
+  color: black !important;
 }

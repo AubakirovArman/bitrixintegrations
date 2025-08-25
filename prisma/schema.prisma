@@ -1,0 +1,83 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  projects  Project[]
+}
+
+model Project {
+  id               String   @id @default(cuid())
+  name             String
+  description      String?
+  status           ProjectStatus @default(ACTIVE)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connections      Connection[]
+  bitrixWebhookUrl String?
+}
+
+model Connection {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        ConnectionType @default(BITRIX)
+  category    BitrixCategory @default(CREATE_DEAL)
+  config      String?  // JSON строка с конфигурацией
+  webhookUrl  String   @unique // Уникальный URL для входящих webhook запросов
+  status      ConnectionStatus @default(ACTIVE)
+  funnelId    String?
+  stageId     String?
+  fieldMapping String? // JSON строка с маппингом полей входящего JSON на поля Bitrix
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ProjectStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ConnectionType {
+  BITRIX
+}
+
+enum ConnectionStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+  PENDING
+}
+
+enum BitrixCategory {
+  CREATE_DEAL
+  CREATE_LEAD
+}
