@@ -90,7 +90,8 @@ export async function POST(
     }
 
     const { id: projectId } = await params
-    const { name, description, category, funnelId, stageId, config } = await request.json()
+  const body = await request.json()
+  const { name, description, category, funnelId, stageId, config, fieldMapping } = body
 
     if (!name || !category) {
       return NextResponse.json(
@@ -141,6 +142,7 @@ export async function POST(
         funnelId: funnelId || null,
         stageId: stageId || null,
         config: JSON.stringify(config || {}),
+        fieldMapping: typeof fieldMapping === 'string' ? fieldMapping : (fieldMapping ? JSON.stringify(fieldMapping) : null),
         webhookUrl,
         projectId
       }

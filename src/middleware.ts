@@ -6,7 +6,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Публичные роуты, которые не требуют авторизации
-  const publicRoutes = ['/', '/login', '/register', '/api/auth/login', '/api/auth/register']
+  const publicRoutes = ['/', '/login', '/api/auth/login']
   
   // Админские роуты
   const adminRoutes = ['/admin', '/api/admin']
@@ -49,11 +49,11 @@ export function middleware(request: NextRequest) {
       if (pathname.startsWith('/api/')) {
         return NextResponse.json({ error: 'Доступ запрещен' }, { status: 403 })
       }
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+      return NextResponse.redirect(new URL('/login', request.url))
     }
 
     // Если пользователь авторизован и пытается зайти на страницы входа/регистрации
-    if (pathname === '/login' || pathname === '/register') {
+  if (pathname === '/login') {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
   }

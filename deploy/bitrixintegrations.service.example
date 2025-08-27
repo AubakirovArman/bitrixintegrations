@@ -1,0 +1,32 @@
+# Systemd unit example for bitrixintegrations Next.js app
+# Copy to /etc/systemd/system/bitrixintegrations.service and adjust paths/user.
+
+[Unit]
+Description=Bitrix Integrations Next.js App
+After=network.target
+
+[Service]
+Type=simple
+# Пользователь под которым запускать (измените при необходимости)
+User=armanibadboy
+Group=armanibadboy
+# Рабочая директория проекта
+WorkingDirectory=/home/armanibadboy/bitrixintegrations
+# Среда
+Environment=NODE_ENV=production
+Environment=PORT=8383
+Environment=HOST=0.0.0.0
+# (Опционально) секрет JWT
+# Environment=JWT_SECRET=your-production-secret
+# Подставьте вашу строку подключения, либо используйте .env файл
+EnvironmentFile=-/home/armanibadboy/bitrixintegrations/.env
+# Команда запуска
+ExecStart=/usr/bin/npm run start
+# Перезапуск при сбоях
+Restart=on-failure
+RestartSec=5
+# Лимиты/ресурсы (можно настроить)
+# LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

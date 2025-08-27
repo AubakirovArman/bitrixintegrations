@@ -83,12 +83,7 @@ export default function LoginPage() {
               {isLoading ? 'Вход...' : 'Войти'}
             </Button>
           </form>
-          <div className="mt-4 text-center text-sm">
-            Нет аккаунта?{' '}
-            <Link href="/register" className="text-blue-600 hover:underline">
-              Зарегистрироваться
-            </Link>
-          </div>
+          {/* Регистрация отключена */}
         </CardContent>
       </Card>
     </div>

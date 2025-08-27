@@ -36,6 +36,16 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'users' | 'projects'>('users')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [newName, setNewName] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newRole, setNewRole] = useState<'USER' | 'ADMIN'>('USER')
+  const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editRole, setEditRole] = useState<'USER' | 'ADMIN'>('USER')
+  const [editPassword, setEditPassword] = useState('')
+  const [processing, setProcessing] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -162,9 +172,64 @@ export default function AdminPage() {
               <p className="text-gray-600">Всего пользователей: {users.length}</p>
             </div>
 
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Создать пользователя</CardTitle>
+                <CardDescription>Админ может добавить нового пользователя</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={async (e) => {
+                  e.preventDefault()
+                  setCreating(true)
+                  setError('')
+                  try {
+                    const resp = await fetch('/api/admin/users', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email: newEmail, name: newName, password: newPassword, role: newRole })
+                    })
+                    const data = await resp.json()
+                    if (!resp.ok) {
+                      setError(data.error || 'Ошибка создания')
+                    } else {
+                      setNewEmail(''); setNewName(''); setNewPassword(''); setNewRole('USER')
+                      fetchData()
+                    }
+                  } catch (err) {
+                    setError('Ошибка сети при создании')
+                  } finally {
+                    setCreating(false)
+                  }
+                }}>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Email</label>
+                    <input className="border rounded px-2 py-1 w-full" type="email" required value={newEmail} onChange={e=>setNewEmail(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Имя</label>
+                    <input className="border rounded px-2 py-1 w-full" value={newName} onChange={e=>setNewName(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Пароль</label>
+                    <input className="border rounded px-2 py-1 w-full" type="password" required value={newPassword} onChange={e=>setNewPassword(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Роль</label>
+                    <select className="border rounded px-2 py-1 w-full" value={newRole} onChange={e=>setNewRole(e.target.value as any)}>
+                      <option value="USER">USER</option>
+                      <option value="ADMIN">ADMIN</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-2 flex gap-2 items-end">
+                    <Button type="submit" disabled={creating}>{creating ? 'Создание...' : 'Создать'}</Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {users.map((user) => (
-                <Card key={user.id}>
+                <Card key={user.id} className="relative">
                   <CardHeader>
                     <CardTitle className="text-lg">
                       {user.name || 'Без имени'}
@@ -193,11 +258,76 @@ export default function AdminPage() {
                           {formatDate(user.createdAt)}
                         </span>
                       </div>
+                      <div className="flex gap-2 pt-2">
+                        <Button variant="outline" size="sm" onClick={() => {
+                          setEditingUser(user)
+                          setEditName(user.name || '')
+                          setEditRole(user.role as any)
+                          setEditPassword('')
+                        }}>Редактировать</Button>
+                        <Button variant="outline" size="sm" className="text-red-600" onClick={async ()=>{
+                          if (!confirm('Удалить пользователя?')) return
+                          setProcessing(true)
+                          try {
+                            const resp = await fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' })
+                            const data = await resp.json()
+                            if (!resp.ok) setError(data.error || 'Ошибка удаления')
+                            else fetchData()
+                          } catch {
+                            setError('Ошибка сети при удалении')
+                          } finally { setProcessing(false) }
+                        }}>Удалить</Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
               ))}
             </div>
+
+            {editingUser && (
+              <Card className="mt-8">
+                <CardHeader>
+                  <CardTitle>Редактировать пользователя</CardTitle>
+                  <CardDescription>{editingUser.email}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={async (e)=>{
+                    e.preventDefault()
+                    setProcessing(true)
+                    setError('')
+                    try {
+                      const payload: any = { name: editName, role: editRole }
+                      if (editPassword) payload.password = editPassword
+                      const resp = await fetch(`/api/admin/users/${editingUser.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+                      const data = await resp.json()
+                      if (!resp.ok) setError(data.error || 'Ошибка сохранения')
+                      else { setEditingUser(null); fetchData() }
+                    } catch { setError('Ошибка сети при сохранении') }
+                    finally { setProcessing(false) }
+                  }}>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Имя</label>
+                      <input className="border rounded px-2 py-1 w-full" value={editName} onChange={e=>setEditName(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Роль</label>
+                      <select className="border rounded px-2 py-1 w-full" value={editRole} onChange={e=>setEditRole(e.target.value as any)}>
+                        <option value="USER">USER</option>
+                        <option value="ADMIN">ADMIN</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="text-sm font-medium">Новый пароль (если нужно сменить)</label>
+                      <input className="border rounded px-2 py-1 w-full" type="password" value={editPassword} onChange={e=>setEditPassword(e.target.value)} placeholder="Оставьте пустым чтобы не менять" />
+                    </div>
+                    <div className="md:col-span-2 flex gap-2">
+                      <Button type="submit" disabled={processing}>{processing ? 'Сохранение...' : 'Сохранить'}</Button>
+                      <Button type="button" variant="outline" disabled={processing} onClick={()=> setEditingUser(null)}>Отмена</Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 

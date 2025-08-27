@@ -101,6 +101,10 @@ export default function ProjectPage() {
     fieldMapping: [] as FieldMappingRule[]
   })
 
+  // Отдельно храним "сохранённый" корректный JSON для маппинга, чтобы не парсить сырые черновики
+  const [savedJsonExample, setSavedJsonExample] = useState<string>('')
+  const [jsonSaveStatus, setJsonSaveStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' })
+
   // Форма редактирования проекта
   const [projectFormData, setProjectFormData] = useState({
     name: '',
@@ -279,6 +283,20 @@ export default function ProjectPage() {
       config: connection.config || '',
       fieldMapping: connection.fieldMapping ? JSON.parse(connection.fieldMapping) : []
     })
+    // При редактировании — сразу подставим сохранённый JSON (если он валиден)
+    try {
+      if (connection.config) {
+        JSON.parse(connection.config)
+        setSavedJsonExample(connection.config)
+        setJsonSaveStatus({ type: 'success', message: 'JSON загружен из связи' })
+      } else {
+        setSavedJsonExample('')
+        setJsonSaveStatus({ type: null, message: '' })
+      }
+    } catch {
+      setSavedJsonExample('')
+      setJsonSaveStatus({ type: 'error', message: 'Сохранённый JSON в связи некорректен' })
+    }
     setShowCreateForm(true)
     
     // Загружаем воронки при редактировании
@@ -298,6 +316,8 @@ export default function ProjectPage() {
     setFormData({ name: '', description: '', category: 'CREATE_DEAL', funnelId: '', stageId: '', config: '', fieldMapping: [] })
     setFunnels([])
     setStages([])
+  setSavedJsonExample('')
+  setJsonSaveStatus({ type: null, message: '' })
   }
 
   const handleTestConnection = async () => {
@@ -588,6 +608,49 @@ export default function ProjectPage() {
                     placeholder='{"key": "value"}'
                     className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   />
+                  <div className="flex gap-2 mt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        try {
+                          if (!formData.config.trim()) {
+                            setJsonSaveStatus({ type: 'error', message: 'JSON пустой' })
+                            setSavedJsonExample('')
+                            return
+                          }
+                          JSON.parse(formData.config)
+                          setSavedJsonExample(formData.config)
+                          setJsonSaveStatus({ type: 'success', message: 'JSON сохранён и распознан' })
+                        } catch (err:any) {
+                          setSavedJsonExample('')
+                          setJsonSaveStatus({ type: 'error', message: 'Ошибка: ' + (err?.message || 'некорректный JSON') })
+                        }
+                      }}
+                    >
+                      Сохранить JSON
+                    </Button>
+                    {savedJsonExample && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSavedJsonExample('')
+                          setJsonSaveStatus({ type: null, message: '' })
+                        }}
+                      >
+                        Очистить сохранённый
+                      </Button>
+                    )}
+                  </div>
+                  {jsonSaveStatus.type && (
+                    <p className={`mt-1 text-xs ${jsonSaveStatus.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>{jsonSaveStatus.message}</p>
+                  )}
+                  {!savedJsonExample && (
+                    <p className="mt-1 text-xs text-gray-500">Сначала введите корректный JSON и нажмите "Сохранить JSON" – поля появятся в списке для маппинга.</p>
+                  )}
                 </div>
 
                 {/* Компонент маппинга полей */}
@@ -599,7 +662,7 @@ export default function ProjectPage() {
                       category={formData.category}
                       value={formData.fieldMapping}
                       onChange={(mapping: any[]) => setFormData({ ...formData, fieldMapping: mapping })}
-                      jsonExample={formData.config}
+                      jsonExample={savedJsonExample}
                     />
                   </div>
                 )}

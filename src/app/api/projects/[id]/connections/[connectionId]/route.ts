@@ -93,8 +93,9 @@ export async function PUT(
       )
     }
 
-    const { id: projectId, connectionId } = await params
-    const { name, description, type, config, status, fieldMapping } = await request.json()
+  const { id: projectId, connectionId } = await params
+  const body = await request.json()
+  const { name, description, type, config, status, fieldMapping, category, funnelId, stageId } = body
 
     // Проверяем, что проект принадлежит пользователю или пользователь - админ
     const project = await db.project.findUnique({
@@ -129,17 +130,23 @@ export async function PUT(
     }
 
     // Обновляем связь
+    // Валидация категории если передана
+    if (category && !['CREATE_DEAL', 'CREATE_LEAD'].includes(category)) {
+      return NextResponse.json({ error: 'Недопустимая категория' }, { status: 400 })
+    }
+
     const connection = await db.connection.update({
-      where: {
-        id: connectionId
-      },
+      where: { id: connectionId },
       data: {
-        name,
-        description,
-        type,
-        config: JSON.stringify(config),
-        status,
-        ...(fieldMapping !== undefined && { fieldMapping })
+        ...(name !== undefined && { name }),
+        ...(description !== undefined && { description }),
+        // type жестко BITRIX, игнорируем изменение если прислали другое
+        ...(category !== undefined && { category }),
+        ...(funnelId !== undefined && { funnelId: funnelId || null }),
+        ...(stageId !== undefined && { stageId: stageId || null }),
+        ...(config !== undefined && { config: JSON.stringify(config) }),
+        ...(status !== undefined && { status }),
+        ...(fieldMapping !== undefined && { fieldMapping: typeof fieldMapping === 'string' ? fieldMapping : JSON.stringify(fieldMapping) })
       }
     })
 

@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { hashPassword } from '@/lib/auth'
+import { hashPassword, verifyToken } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, name } = await request.json()
+    // Запрещаем прямую публичную регистрацию
+    const token = request.cookies.get('auth-token')?.value
+    const decoded = token ? verifyToken(token) : null
+    if (!decoded || decoded.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Регистрация отключена. Создание пользователей только через админа.' }, { status: 403 })
+    }
+
+    const { email, password, name, role } = await request.json()
 
     if (!email || !password) {
       return NextResponse.json(
@@ -34,6 +41,7 @@ export async function POST(request: NextRequest) {
         email,
         password: hashedPassword,
         name: name || null,
+        role: role === 'ADMIN' ? 'ADMIN' : 'USER'
       },
       select: {
         id: true,
