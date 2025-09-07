@@ -9,8 +9,9 @@ export async function POST() {
   // Удаляем cookie с токеном
   response.cookies.set('auth-token', '', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: false,
     sameSite: 'lax',
+    path: '/',
     maxAge: 0
   })
 

@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       role: user.role
     })
 
-    // Создаем ответ с токеном в cookie
+  // Создаем ответ с токеном в cookie
     const response = NextResponse.json(
       {
         message: 'Успешный вход',
@@ -57,10 +57,14 @@ export async function POST(request: NextRequest) {
     )
 
     // Устанавливаем cookie с токеном
+    const isHttps = request.nextUrl.protocol === 'https:'
+    const isProd = process.env.NODE_ENV === 'production'
+    const secure = isProd ? isHttps : false
     response.cookies.set('auth-token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure,
       sameSite: 'lax',
+      path: '/',
       maxAge: 60 * 60 * 24 * 7 // 7 дней
     })
 
