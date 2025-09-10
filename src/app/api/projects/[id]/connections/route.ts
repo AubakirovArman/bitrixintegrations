@@ -101,9 +101,9 @@ export async function POST(
     }
 
     // Проверяем валидность категории
-    if (!['CREATE_DEAL', 'CREATE_LEAD'].includes(category)) {
-      return NextResponse.json(
-        { error: 'Недопустимая категория. Доступны: CREATE_DEAL, CREATE_LEAD' },
+    if (!['CREATE_DEAL', 'CREATE_LEAD', 'MOVE_DEAL'].includes(category)) {
+    return NextResponse.json(
+      { error: 'Недопустимая категория. Доступны: CREATE_DEAL, CREATE_LEAD, MOVE_DEAL' },
         { status: 400 }
       )
     }

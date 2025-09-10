@@ -131,7 +131,7 @@ export async function PUT(
 
     // Обновляем связь
     // Валидация категории если передана
-    if (category && !['CREATE_DEAL', 'CREATE_LEAD'].includes(category)) {
+    if (category && !['CREATE_DEAL', 'CREATE_LEAD', 'MOVE_DEAL', 'MOVE_DEAL_BY_PHONE'].includes(category)) {
       return NextResponse.json({ error: 'Недопустимая категория' }, { status: 400 })
     }
 

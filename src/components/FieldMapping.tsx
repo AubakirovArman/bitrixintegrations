@@ -24,7 +24,7 @@ interface FieldMappingRule {
 
 interface FieldMappingProps {
   webhookUrl: string
-  category: 'CREATE_DEAL' | 'CREATE_LEAD'
+  category: 'CREATE_DEAL' | 'CREATE_LEAD' | 'MOVE_DEAL' | 'MOVE_DEAL_BY_PHONE'
   value: FieldMappingRule[]
   onChange: (mapping: FieldMappingRule[]) => void
   jsonExample?: string
@@ -49,12 +49,37 @@ export default function FieldMapping({
         const parsed = JSON.parse(jsonExample)
         const fields = extractJsonFields(parsed)
         setJsonFields(fields)
+        
+        // Сразу фильтруем правила маппинга при изменении JSON
+        const filteredMapping = value.filter(rule => 
+          rule.sourceField === '' || fields.includes(rule.sourceField)
+        )
+        
+        if (filteredMapping.length !== value.length) {
+          onChange(filteredMapping)
+        }
       } catch (err) {
         console.error('Invalid JSON example:', err)
         setJsonFields([])
       }
+    } else {
+      setJsonFields([])
     }
-  }, [jsonExample])
+  }, [jsonExample, value, onChange])
+
+  // Удаляем правила маппинга для полей, которые больше не существуют в JSON
+  useEffect(() => {
+    if (jsonFields.length > 0) {
+      const filteredMapping = value.filter(rule => 
+        rule.sourceField === '' || jsonFields.includes(rule.sourceField)
+      )
+      
+      // Обновляем маппинг только если что-то изменилось
+      if (filteredMapping.length !== value.length) {
+        onChange(filteredMapping)
+      }
+    }
+  }, [jsonFields, value, onChange])
 
   // Загружаем поля Bitrix при изменении категории или webhook URL
   useEffect(() => {
@@ -88,7 +113,7 @@ export default function FieldMapping({
       setLoading(true)
       setError('')
       
-      const entityType = category === 'CREATE_DEAL' ? 'deal' : 'lead'
+      const entityType = (category === 'CREATE_DEAL' || category === 'MOVE_DEAL' || category === 'MOVE_DEAL_BY_PHONE') ? 'deal' : 'lead'
       const response = await fetch(`/api/bitrix/fields?webhookUrl=${encodeURIComponent(webhookUrl)}&entityType=${entityType}`)
       
       if (response.ok) {
@@ -230,6 +255,7 @@ export default function FieldMapping({
           variant="outline"
           onClick={addMappingRule}
           className="w-full"
+          disabled={false}
         >
           <Plus className="h-4 w-4 mr-2" />
           Добавить правило маппинга

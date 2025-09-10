@@ -80,4 +80,6 @@ enum ConnectionStatus {
 enum BitrixCategory {
   CREATE_DEAL
   CREATE_LEAD
+  MOVE_DEAL
+  MOVE_DEAL_BY_PHONE
 }

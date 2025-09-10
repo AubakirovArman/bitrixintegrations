@@ -16,7 +16,7 @@ interface Connection {
   name: string
   description?: string
   type: 'BITRIX'
-  category: 'CREATE_DEAL' | 'CREATE_LEAD'
+  category: 'CREATE_DEAL' | 'CREATE_LEAD' | 'MOVE_DEAL' | 'MOVE_DEAL_BY_PHONE'
   status: 'ACTIVE' | 'INACTIVE' | 'ERROR' | 'PENDING'
   config?: string
   webhookUrl: string
@@ -55,7 +55,9 @@ interface FieldMappingRule {
 
 const connectionCategoryLabels = {
   CREATE_DEAL: 'Создать сделку',
-  CREATE_LEAD: 'Создать лид'
+  CREATE_LEAD: 'Создать лид',
+  MOVE_DEAL: 'Переместить сделку',
+  MOVE_DEAL_BY_PHONE: 'Переместить сделку по телефону'
 }
 
 const connectionStatusLabels = {
@@ -205,7 +207,13 @@ export default function ProjectPage() {
         },
         body: JSON.stringify({
           ...formData,
-          config: formData.config ? JSON.parse(formData.config) : {},
+          config: formData.config ? (() => {
+            try {
+              return JSON.parse(formData.config)
+            } catch {
+              return {}
+            }
+          })() : {},
           fieldMapping: JSON.stringify(formData.fieldMapping)
         })
       })
@@ -235,7 +243,13 @@ export default function ProjectPage() {
         },
         body: JSON.stringify({
           ...formData,
-          config: formData.config ? JSON.parse(formData.config) : {},
+          config: formData.config ? (() => {
+            try {
+              return JSON.parse(formData.config)
+            } catch {
+              return {}
+            }
+          })() : {},
           fieldMapping: JSON.stringify(formData.fieldMapping)
         })
       })
@@ -321,9 +335,41 @@ export default function ProjectPage() {
   }
 
   const handleTestConnection = async () => {
-    if (!project?.bitrixWebhookUrl || !formData.config || !formData.category) {
+    if (!project?.bitrixWebhookUrl || !formData.category) {
       setError('Заполните все обязательные поля для тестирования')
       return
+    }
+
+    // Проверяем специфичные требования для каждой категории
+    if (!formData.config) {
+      setError('Заполните конфигурацию для тестирования')
+      return
+    }
+    
+    if (formData.category === 'MOVE_DEAL') {
+      try {
+        const config = JSON.parse(formData.config)
+        if (!config.dealId) {
+          setError('Для тестирования перемещения сделки необходимо указать dealId в JSON')
+          return
+        }
+      } catch {
+        setError('Некорректный JSON формат в конфигурации')
+        return
+      }
+    }
+    
+    if (formData.category === 'MOVE_DEAL_BY_PHONE') {
+      try {
+        const config = JSON.parse(formData.config)
+        if (!config.phone) {
+          setError('Для тестирования перемещения сделки по телефону необходимо указать phone в JSON')
+          return
+        }
+      } catch {
+        setError('Некорректный JSON формат в конфигурации')
+        return
+      }
     }
 
     try {
@@ -335,7 +381,7 @@ export default function ProjectPage() {
         category: formData.category,
         funnelId: formData.funnelId,
         stageId: formData.stageId,
-        fieldMapping: JSON.stringify(formData.fieldMapping),
+        fieldMapping: JSON.stringify(formData.fieldMapping || []),
         config: JSON.stringify({
           CATEGORY_ID: formData.funnelId,
           STAGE_ID: formData.stageId,
@@ -359,7 +405,13 @@ export default function ProjectPage() {
       const result = await response.json()
       
       if (response.ok) {
-        alert(`Тест успешно выполнен! Создана карточка с ID: ${result.id}`)
+        if (formData.category === 'MOVE_DEAL') {
+          alert(`Тест успешно выполнен! Сделка обновлена с ID: ${result.id}`)
+        } else if (formData.category === 'MOVE_DEAL_BY_PHONE') {
+          alert(`Тест успешно выполнен! Сделка найдена и перемещена с ID: ${result.id}`)
+        } else {
+          alert(`Тест успешно выполнен! Создана карточка с ID: ${result.id}`)
+        }
       } else {
         setError(result.error || 'Ошибка тестирования')
       }
@@ -547,7 +599,7 @@ export default function ProjectPage() {
                   </Select>
                 </div>
 
-                {project?.bitrixWebhookUrl && (
+                {project?.bitrixWebhookUrl && formData.category !== 'MOVE_DEAL' && formData.category !== 'MOVE_DEAL_BY_PHONE' && (
                   <>
                     <div>
                       <Label htmlFor="funnel">Воронка</Label>
@@ -591,7 +643,62 @@ export default function ProjectPage() {
                   </>
                 )}
 
-                {!project?.bitrixWebhookUrl && (
+                {/* Упрощенный интерфейс для MOVE_DEAL */}
+                {formData.category === 'MOVE_DEAL' && project?.bitrixWebhookUrl && (
+                  <>
+                    <div>
+                      <Label htmlFor="funnel">Воронка (куда перемещать)</Label>
+                      <Select
+                        value={formData.funnelId}
+                        onValueChange={(value: string) => setFormData({ ...formData, funnelId: value, stageId: '' })}
+                        disabled={loadingFunnels || funnels.length === 0}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={loadingFunnels ? "Загрузка..." : "Выберите воронку"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {funnels.map((funnel) => (
+                            <SelectItem key={funnel.id} value={funnel.id}>
+                              {funnel.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="stage">Столбец (куда перемещать)</Label>
+                      <Select
+                        value={formData.stageId}
+                        onValueChange={(value: string) => setFormData({ ...formData, stageId: value })}
+                        disabled={loadingStages || stages.length === 0 || !formData.funnelId}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={loadingStages ? "Загрузка..." : "Выберите столбец"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {stages.map((stage) => (
+                            <SelectItem key={stage.id} value={stage.id}>
+                              {stage.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+                      <h4 className="font-medium text-blue-900 mb-2">Пример запроса для тестирования:</h4>
+                      <pre className="text-sm text-blue-800 bg-blue-100 p-2 rounded overflow-x-auto">
+{`{"dealId": 687}`}
+                      </pre>
+                      <p className="text-xs text-blue-700 mt-2">
+                        Укажите ID существующей сделки в Bitrix24 для тестирования перемещения.
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {!project?.bitrixWebhookUrl && formData.category !== 'MOVE_DEAL_BY_PHONE' && (
                   <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
                     <p className="text-sm text-yellow-800">
                       Для выбора воронки и столбца необходимо указать Bitrix Webhook URL в настройках проекта.
@@ -599,62 +706,269 @@ export default function ProjectPage() {
                   </div>
                 )}
 
-                <div>
-                  <Label htmlFor="config">Конфигурация (JSON)</Label>
-                  <textarea
-                    id="config"
-                    value={formData.config}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, config: e.target.value })}
-                    placeholder='{"key": "value"}'
-                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  />
-                  <div className="flex gap-2 mt-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        try {
-                          if (!formData.config.trim()) {
-                            setJsonSaveStatus({ type: 'error', message: 'JSON пустой' })
-                            setSavedJsonExample('')
-                            return
-                          }
-                          JSON.parse(formData.config)
-                          setSavedJsonExample(formData.config)
-                          setJsonSaveStatus({ type: 'success', message: 'JSON сохранён и распознан' })
-                        } catch (err:any) {
-                          setSavedJsonExample('')
-                          setJsonSaveStatus({ type: 'error', message: 'Ошибка: ' + (err?.message || 'некорректный JSON') })
-                        }
-                      }}
-                    >
-                      Сохранить JSON
-                    </Button>
-                    {savedJsonExample && (
+                {/* Поле конфигурации для CREATE_DEAL и CREATE_LEAD */}
+                {formData.category !== 'MOVE_DEAL' && formData.category !== 'MOVE_DEAL_BY_PHONE' && (
+                  <div>
+                    <Label htmlFor="config">Конфигурация (JSON)</Label>
+                    <textarea
+                      id="config"
+                      value={formData.config}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, config: e.target.value })}
+                      placeholder='{"key": "value"}'
+                      className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                    <div className="flex gap-2 mt-2">
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          setSavedJsonExample('')
-                          setJsonSaveStatus({ type: null, message: '' })
+                          try {
+                            if (!formData.config.trim()) {
+                              setJsonSaveStatus({ type: 'error', message: 'JSON пустой' })
+                              setSavedJsonExample('')
+                              return
+                            }
+                            JSON.parse(formData.config)
+                            setSavedJsonExample(formData.config)
+                            setJsonSaveStatus({ type: 'success', message: 'JSON сохранён и распознан' })
+                          } catch (err:any) {
+                            setSavedJsonExample('')
+                            setJsonSaveStatus({ type: 'error', message: 'Ошибка: ' + (err?.message || 'некорректный JSON') })
+                          }
                         }}
                       >
-                        Очистить сохранённый
+                        Сохранить JSON
                       </Button>
+                      {savedJsonExample && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSavedJsonExample('')
+                            setJsonSaveStatus({ type: null, message: '' })
+                          }}
+                        >
+                          Очистить сохранённый
+                        </Button>
+                      )}
+                    </div>
+                    {jsonSaveStatus.type && (
+                      <p className={`mt-1 text-xs ${jsonSaveStatus.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>{jsonSaveStatus.message}</p>
+                    )}
+                    {!savedJsonExample && (
+                      <p className="mt-1 text-xs text-gray-500">Сначала введите корректный JSON и нажмите "Сохранить JSON" – поля появятся в списке для маппинга.</p>
                     )}
                   </div>
-                  {jsonSaveStatus.type && (
-                    <p className={`mt-1 text-xs ${jsonSaveStatus.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>{jsonSaveStatus.message}</p>
-                  )}
-                  {!savedJsonExample && (
-                    <p className="mt-1 text-xs text-gray-500">Сначала введите корректный JSON и нажмите "Сохранить JSON" – поля появятся в списке для маппинга.</p>
-                  )}
-                </div>
+                )}
 
-                {/* Компонент маппинга полей */}
-                {project?.bitrixWebhookUrl && (
+                {/* Специальный интерфейс для MOVE_DEAL_BY_PHONE */}
+                {formData.category === 'MOVE_DEAL_BY_PHONE' && (
+                  <div className="space-y-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-blue-800 mb-2">
+                        Перемещение сделки по номеру телефона
+                      </h4>
+                      <p className="text-sm text-blue-700 mb-3">
+                        Эта интеграция найдет сделку по номеру телефона и переместит её в указанную воронку и этап.
+                      </p>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Целевая воронка
+                          </label>
+                          <Select
+                            value={formData.funnelId}
+                            onValueChange={(value) => setFormData({ ...formData, funnelId: value, stageId: '' })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Выберите воронку" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {funnels.map((funnel) => (
+                                <SelectItem key={funnel.id} value={funnel.id}>
+                                  {funnel.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Целевой этап
+                          </label>
+                          <Select
+                            value={formData.stageId}
+                            onValueChange={(value) => setFormData({ ...formData, stageId: value })}
+                            disabled={!formData.funnelId}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Выберите этап" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {stages.map((stage) => (
+                                <SelectItem key={stage.id} value={stage.id}>
+                                  {stage.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4">
+                        <h5 className="text-sm font-medium text-blue-800 mb-2">Пример запроса:</h5>
+                        <pre className="text-xs bg-blue-100 p-3 rounded overflow-x-auto">
+{`POST ${window.location.origin}/api/webhook/${project?.id}
+Content-Type: application/json
+
+{
+  "phone": "+7 (999) 123-45-67",
+  "customField1": "значение1",
+  "customField2": "значение2"
+}`}
+                        </pre>
+                      </div>
+                    </div>
+                    
+                  </div>
+                )}
+
+                {/* Поле конфигурации для MOVE_DEAL_BY_PHONE */}
+                {formData.category === 'MOVE_DEAL_BY_PHONE' && (
+                  <div>
+                    <Label htmlFor="config">Конфигурация перемещения (JSON)</Label>
+                    <textarea
+                      id="config"
+                      value={formData.config}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                        setFormData({ ...formData, config: e.target.value })
+                      }}
+                      placeholder={`{
+  "phone": "+7 (999) 123-45-67",
+  "TITLE": "Новое название сделки",
+  "OPPORTUNITY": 50000,
+  "CURRENCY_ID": "RUB",
+  "COMMENTS": "Комментарий к сделке"
+}`}
+                      className="w-full h-32 p-2 border rounded font-mono text-sm"
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          try {
+                            const parsed = JSON.parse(formData.config)
+                            setSavedJsonExample(formData.config)
+                            setJsonSaveStatus({ type: 'success', message: 'JSON сохранён для маппинга полей' })
+                          } catch {
+                            setJsonSaveStatus({ type: 'error', message: 'Некорректный JSON формат' })
+                          }
+                        }}
+                      >
+                        Сохранить JSON
+                      </Button>
+                      {savedJsonExample && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSavedJsonExample('')
+                            setJsonSaveStatus({ type: null, message: '' })
+                          }}
+                        >
+                          Очистить сохранённый
+                        </Button>
+                      )}
+                    </div>
+                    {jsonSaveStatus.type && (
+                      <p className={`mt-1 text-xs ${
+                        jsonSaveStatus.type === 'success' 
+                          ? 'text-green-600' 
+                          : 'text-red-600'
+                      }`}>
+                        {jsonSaveStatus.message}
+                      </p>
+                    )}
+                    <p className="mt-1 text-xs text-gray-500">
+                      Обязательное поле: <strong>phone</strong> - номер телефона для поиска сделки. Дополнительно можно указать поля для изменения: TITLE, OPPORTUNITY, CURRENCY_ID, COMMENTS и др.
+                    </p>
+                    {!savedJsonExample && (
+                      <p className="mt-1 text-xs text-gray-500">Сначала введите корректный JSON и нажмите "Сохранить JSON" – поля появятся в списке для маппинга.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Поле конфигурации для MOVE_DEAL */}
+                {formData.category === 'MOVE_DEAL' && (
+                  <div>
+                    <Label htmlFor="config">Конфигурация перемещения (JSON)</Label>
+                    <textarea
+                      id="config"
+                      value={formData.config}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                        setFormData({ ...formData, config: e.target.value })
+                      }}
+                      placeholder={`{
+  "dealId": 687,
+  "TITLE": "Новое название сделки",
+  "OPPORTUNITY": 50000,
+  "CURRENCY_ID": "RUB",
+  "COMMENTS": "Комментарий к сделке"
+}`}
+                      className="w-full h-32 p-2 border rounded font-mono text-sm"
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          try {
+                            const parsed = JSON.parse(formData.config)
+                            setSavedJsonExample(formData.config)
+                            setJsonSaveStatus({ type: 'success', message: 'JSON сохранён для маппинга полей' })
+                          } catch {
+                            setJsonSaveStatus({ type: 'error', message: 'Некорректный JSON формат' })
+                          }
+                        }}
+                      >
+                        Сохранить JSON
+                      </Button>
+                      {savedJsonExample && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSavedJsonExample('')
+                            setJsonSaveStatus({ type: null, message: '' })
+                          }}
+                        >
+                          Очистить сохранённый
+                        </Button>
+                      )}
+                    </div>
+                    {jsonSaveStatus.type && (
+                      <p className={`mt-1 text-xs ${jsonSaveStatus.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>{jsonSaveStatus.message}</p>
+                    )}
+                    <p className="mt-1 text-xs text-gray-500">
+                      Обязательное поле: <strong>dealId</strong> - ID существующей сделки. Дополнительно можно указать поля для изменения: TITLE, OPPORTUNITY, CURRENCY_ID, COMMENTS и др.
+                    </p>
+                    {!savedJsonExample && (
+                      <p className="mt-1 text-xs text-gray-500">Сначала введите корректный JSON и нажмите "Сохранить JSON" – поля появятся в списке для маппинга.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Компонент маппинга полей - для всех категорий */}
+                {project?.bitrixWebhookUrl && savedJsonExample && (
                   <div>
                     <Label>Маппинг полей</Label>
                     <FieldMapping
@@ -675,7 +989,23 @@ export default function ProjectPage() {
                     type="button" 
                     variant="outline" 
                     onClick={handleTestConnection}
-                    disabled={!project?.bitrixWebhookUrl || !formData.config || !formData.category}
+                    disabled={
+                      !project?.bitrixWebhookUrl || 
+                      !formData.category || 
+                      (formData.category === 'MOVE_DEAL' ? 
+                        (!formData.config || (() => {
+                          try {
+                            const config = JSON.parse(formData.config || '{}')
+                            return !config.dealId
+                          } catch {
+                            return true
+                          }
+                        })()) : 
+                        formData.category === 'MOVE_DEAL_BY_PHONE' ? 
+                          false : // Для MOVE_DEAL_BY_PHONE не требуется config для тестирования
+                          !formData.config
+                      )
+                    }
                     className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
                   >
                     Тест

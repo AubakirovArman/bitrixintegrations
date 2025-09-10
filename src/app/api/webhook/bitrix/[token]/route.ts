@@ -79,6 +79,12 @@ export async function POST(
       case 'CREATE_LEAD':
         result = await processLeadCreation(connection, payload)
         break
+      case 'MOVE_DEAL':
+        result = await processDealMove(connection, payload)
+        break
+      case 'MOVE_DEAL_BY_PHONE':
+        result = await processDealMoveByPhone(connection, payload)
+        break
       default:
         return NextResponse.json(
           { error: 'Неподдерживаемая категория' },
@@ -240,6 +246,232 @@ async function processLeadCreation(connection: any, payload: any) {
     }
   } catch (error) {
     console.error('Error creating lead in Bitrix:', error)
+    throw error
+  }
+}
+
+// Функция для обработки перемещения сделки
+async function processDealMove(connection: any, payload: any) {
+  try {
+    // Получаем bitrixUrl из проекта
+    const bitrixUrl = connection.project?.bitrixWebhookUrl
+    if (!bitrixUrl) {
+      throw new Error('Bitrix URL не настроен в проекте')
+    }
+    
+    // Парсим маппинг полей из связи
+    const fieldMapping: FieldMappingRule[] = JSON.parse(connection.fieldMapping || '[]')
+    console.log('Field mapping rules for move:', fieldMapping)
+    
+    // Применяем маппинг полей
+    const mappedData = applyFieldMapping(payload, fieldMapping)
+    console.log('Mapped data for move:', mappedData)
+    
+    // Получаем ID сделки из входящих данных
+    const dealId = mappedData.dealId || mappedData.id || payload.dealId || payload.id
+    if (!dealId) {
+      throw new Error('ID сделки не найден в входящих данных')
+    }
+    
+    // Подготавливаем данные для обновления сделки
+    const updateData: any = {}
+    
+    // Добавляем все поля из mappedData (кроме dealId и id)
+    Object.keys(mappedData).forEach(key => {
+      if (key !== 'dealId' && key !== 'id') {
+        updateData[key] = mappedData[key]
+      }
+    })
+    
+    // Парсим конфигурацию связи для получения дополнительных настроек
+    const config = JSON.parse(connection.config || '{}')
+    
+    // Устанавливаем новую воронку и этап из настроек связи
+    if (config.CATEGORY_ID) {
+      updateData.CATEGORY_ID = config.CATEGORY_ID
+    }
+    if (config.STAGE_ID) {
+      updateData.STAGE_ID = config.STAGE_ID
+    }
+    
+    // Проверяем, является ли это тестовой конфигурацией
+    if (bitrixUrl === 'https://your-bitrix-domain.bitrix24.ru') {
+      // Возвращаем мок-ответ для тестирования
+      console.log('Mock Bitrix API call for move:', {
+        url: `${bitrixUrl}/crm.deal.update.json`,
+        dealId,
+        updateData
+      })
+      
+      return {
+        type: 'deal',
+        action: 'moved',
+        bitrixId: dealId,
+        updateData,
+        originalPayload: payload,
+        note: 'Тестовый режим - сделка не была перемещена в реальном Bitrix'
+      }
+    }
+    
+    // Отправляем запрос в Bitrix API для обновления сделки
+    const bitrixResponse = await fetch(`${bitrixUrl}/crm.deal.update.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id: dealId,
+        fields: updateData
+      })
+    })
+    
+    const result = await bitrixResponse.json()
+    
+    if (!bitrixResponse.ok || result.error) {
+      throw new Error(`Bitrix API error: ${result.error_description || result.error || 'Unknown error'}`)
+    }
+    
+    return {
+      type: 'deal',
+      action: 'moved',
+      bitrixId: dealId,
+      updateData,
+      originalPayload: payload,
+      success: result.result
+    }
+  } catch (error) {
+    console.error('Error moving deal in Bitrix:', error)
+    throw error
+  }
+}
+
+// Функция для обработки перемещения сделки по номеру телефона
+async function processDealMoveByPhone(connection: any, payload: any) {
+  try {
+    // Получаем bitrixUrl из проекта
+    const bitrixUrl = connection.project?.bitrixWebhookUrl
+    if (!bitrixUrl) {
+      throw new Error('Bitrix URL не настроен в проекте')
+    }
+    
+    // Парсим маппинг полей из связи
+    const fieldMapping: FieldMappingRule[] = JSON.parse(connection.fieldMapping || '[]')
+    console.log('Field mapping rules for move by phone:', fieldMapping)
+    
+    // Применяем маппинг полей
+    const mappedData = applyFieldMapping(payload, fieldMapping)
+    console.log('Mapped data for move by phone:', mappedData)
+    
+    // Получаем номер телефона из входящих данных
+    const phoneNumber = mappedData.phone || mappedData.tel || payload.phone || payload.tel
+    if (!phoneNumber) {
+      throw new Error('Номер телефона не найден в входящих данных')
+    }
+    
+    // Подготавливаем данные для обновления сделки
+    const updateData: any = {}
+    
+    // Добавляем все поля из mappedData (кроме phone и tel)
+    Object.keys(mappedData).forEach(key => {
+      if (key !== 'phone' && key !== 'tel') {
+        updateData[key] = mappedData[key]
+      }
+    })
+    
+    // Парсим конфигурацию связи для получения дополнительных настроек
+    const config = JSON.parse(connection.config || '{}')
+    
+    // Устанавливаем новую воронку и этап из настроек связи
+    if (config.CATEGORY_ID) {
+      updateData.CATEGORY_ID = config.CATEGORY_ID
+    }
+    if (config.STAGE_ID) {
+      updateData.STAGE_ID = config.STAGE_ID
+    }
+    
+    // Проверяем, является ли это тестовой конфигурацией
+    if (bitrixUrl === 'https://your-bitrix-domain.bitrix24.ru') {
+      // Возвращаем мок-ответ для тестирования
+      const mockDealId = Math.floor(Math.random() * 10000) + 1000
+      console.log('Mock Bitrix API call for move by phone:', {
+        phoneNumber,
+        foundDealId: mockDealId,
+        updateData
+      })
+      
+      return {
+        type: 'deal',
+        action: 'moved_by_phone',
+        phoneNumber,
+        bitrixId: mockDealId,
+        updateData,
+        originalPayload: payload,
+        note: 'Тестовый режим - поиск и перемещение сделки по телефону не выполнены в реальном Bitrix'
+      }
+    }
+    
+    // Ищем сделки по номеру телефона в Bitrix
+    const searchResponse = await fetch(`${bitrixUrl}/crm.deal.list.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        filter: {
+          'PHONE': phoneNumber
+        },
+        order: {
+          'ID': 'DESC'
+        },
+        select: ['ID', 'TITLE', 'PHONE', 'DATE_CREATE']
+      })
+    })
+
+    const searchResult = await searchResponse.json()
+    
+    if (!searchResponse.ok || searchResult.error) {
+      throw new Error(`Bitrix API search error: ${searchResult.error_description || searchResult.error || 'Unknown error'}`)
+    }
+
+    // Проверяем, найдены ли сделки
+    if (!searchResult.result || searchResult.result.length === 0) {
+      throw new Error(`Сделка с номером телефона ${phoneNumber} не найдена`)
+    }
+
+    // Берем самую последнюю сделку (первую в отсортированном по ID списке)
+    const latestDeal = searchResult.result[0]
+    const dealId = latestDeal.ID
+    
+    // Отправляем запрос в Bitrix API для обновления сделки
+    const bitrixResponse = await fetch(`${bitrixUrl}/crm.deal.update.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id: dealId,
+        fields: updateData
+      })
+    })
+
+    const result = await bitrixResponse.json()
+    
+    if (!bitrixResponse.ok || result.error) {
+      throw new Error(`Bitrix API error: ${result.error_description || result.error || 'Unknown error'}`)
+    }
+
+    return {
+      type: 'deal',
+      action: 'moved_by_phone',
+      phoneNumber,
+      bitrixId: dealId,
+      updateData,
+      originalPayload: payload,
+      foundDeal: latestDeal,
+      success: result.result
+    }
+  } catch (error) {
+    console.error('Error moving deal by phone in Bitrix:', error)
     throw error
   }
 }
